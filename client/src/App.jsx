@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import Matter from 'matter-js'
 import TopBar from './components/Layout/TopBar'
 import ToolPalette from './components/Toolbar/ToolPalette'
@@ -24,20 +24,21 @@ function AppContent() {
     sendWorldSync, onWorldSync,
     sendSimState, onSimState,
   } = useSocket()
-  const { isConnected, roomCode } = useRoomStore()
+  const { isConnected, roomCode, hostId, currentUserId } = useRoomStore()
   const { data, collisions, exportCSV, clearCollisions } = useAnalytics(100)
   const { engineRef } = useEngine()
   const { undo, redo, clear: clearHistory } = useUndoRedo()
 
-  // Prevent infinite sync loops: true while applying incoming remote changes
+  // Prevent sync loops: true while applying incoming data
   const isSyncingRef = useRef(false)
-  // Track body count to detect local changes (body creation/deletion)
-  const lastBodyCountRef = useRef(0)
+
+  // Am I the room host?
+  const isHost = !!(hostId && hostId === currentUserId)
 
   useKeyboardShortcuts({ onUndo: undo, onRedo: redo })
 
   // ──────────────────────────────────────────
-  // RECEIVE: Experiment loaded by another user
+  // RECEIVE: Experiment loaded by a peer
   // ──────────────────────────────────────────
   useEffect(() => {
     return onExperimentLoaded((snapshot) => {
@@ -48,12 +49,12 @@ function AppContent() {
       useCanvasStore.getState().setRunning(false)
       clearHistory()
       clearCollisions()
-      isSyncingRef.current = false
+      setTimeout(() => { isSyncingRef.current = false }, 200)
     })
   }, [onExperimentLoaded])
 
   // ──────────────────────────────────────────
-  // RECEIVE: Full world state from another user
+  // RECEIVE: Full world state from a peer
   // ──────────────────────────────────────────
   useEffect(() => {
     return onWorldSync((snapshot) => {
@@ -61,61 +62,56 @@ function AppContent() {
       if (!engine || !snapshot) return
       isSyncingRef.current = true
       deserializeWorld(engine, snapshot, useCanvasStore)
-      isSyncingRef.current = false
+      setTimeout(() => { isSyncingRef.current = false }, 200)
     })
   }, [onWorldSync])
 
   // ──────────────────────────────────────────
-  // RECEIVE: Play/Pause state from another user
+  // RECEIVE: Play/Pause from a peer
   // ──────────────────────────────────────────
   useEffect(() => {
     return onSimState((isRunning) => {
       isSyncingRef.current = true
       useCanvasStore.getState().setRunning(isRunning)
-      isSyncingRef.current = false
+      setTimeout(() => { isSyncingRef.current = false }, 200)
     })
   }, [onSimState])
 
   // ──────────────────────────────────────────
-  // SEND: Periodic world sync while in a room
-  // Broadcasts full world state every 500ms
-  // This syncs body creation, constraint creation,
-  // physics positions, and everything else
+  // SEND: Host-only periodic world sync (every 1s)
+  // Only the HOST broadcasts the authoritative world state.
+  // Non-host clients NEVER periodically sync — they only
+  // send on explicit actions (body creation etc).
   // ──────────────────────────────────────────
   useEffect(() => {
-    if (!roomCode) return
+    if (!roomCode || !isHost) return
 
     const interval = setInterval(() => {
       const engine = engineRef.current
       if (!engine || isSyncingRef.current) return
-
       const snapshot = serializeWorld(engine)
       sendWorldSync(snapshot)
-    }, 500)
+    }, 1000)
 
     return () => clearInterval(interval)
-  }, [roomCode, sendWorldSync])
+  }, [roomCode, isHost, sendWorldSync])
 
   // ──────────────────────────────────────────
-  // SEND: Play/Pause state changes
-  // Subscribe to isRunning changes in the store
+  // SEND: Play/Pause sync
   // ──────────────────────────────────────────
   useEffect(() => {
     if (!roomCode) return
-
     const unsub = useCanvasStore.subscribe(
       (state) => state.isRunning,
       (isRunning) => {
-        if (isSyncingRef.current) return
-        sendSimState(isRunning)
+        if (!isSyncingRef.current) sendSimState(isRunning)
       }
     )
-
     return unsub
   }, [roomCode, sendSimState])
 
   // ──────────────────────────────────────────
-  // Room join/leave handlers
+  // Room join/leave
   // ──────────────────────────────────────────
   const handleJoinRoom = (code, roomName) => {
     joinRoom(code, {
@@ -125,7 +121,7 @@ function AppContent() {
   }
 
   // ──────────────────────────────────────────
-  // Experiment loading
+  // Load experiment — sync to peers
   // ──────────────────────────────────────────
   const handleLoadExperiment = (experiment) => {
     const engine = engineRef.current
@@ -135,14 +131,11 @@ function AppContent() {
     clearHistory()
     clearCollisions()
 
-    // Broadcast to room peers
-    if (roomCode) {
-      sendExperiment(experiment.snapshot)
-    }
+    if (roomCode) sendExperiment(experiment.snapshot)
   }
 
   // ──────────────────────────────────────────
-  // World reset
+  // Reset world — sync to peers
   // ──────────────────────────────────────────
   const handleReset = () => {
     const engine = engineRef.current
@@ -153,7 +146,6 @@ function AppContent() {
     clearHistory()
     clearCollisions()
 
-    // Sync empty world to room
     if (roomCode) {
       const snapshot = serializeWorld(engine)
       sendWorldSync(snapshot)
@@ -161,7 +153,7 @@ function AppContent() {
   }
 
   // ──────────────────────────────────────────
-  // Step forward one frame
+  // Step forward
   // ──────────────────────────────────────────
   const handleStep = () => {
     const engine = engineRef.current
@@ -169,7 +161,6 @@ function AppContent() {
     useCanvasStore.getState().setRunning(false)
     Matter.Engine.update(engine, 1000 / 60)
 
-    // Sync after step
     if (roomCode) {
       const snapshot = serializeWorld(engine)
       sendWorldSync(snapshot)
