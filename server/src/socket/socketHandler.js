@@ -103,6 +103,20 @@ function socketHandler(io) {
       })
     })
 
+    // ── Experiment Sync ──
+    // When a user loads an experiment, broadcast it to everyone else in the room
+    socket.on('experiment:load', (snapshot) => {
+      if (!currentRoom) return
+
+      const room = rooms.get(currentRoom)
+      if (!room) return
+
+      console.log(`🔬 ${socket.id} loaded experiment in room ${currentRoom}`)
+
+      // Broadcast to all OTHER users in the room
+      socket.to(currentRoom).emit('experiment:loaded', snapshot)
+    })
+
     // ── Full State Sync (host broadcasts periodically) ──
     socket.on('physics:full-state', (worldState) => {
       if (!currentRoom) return

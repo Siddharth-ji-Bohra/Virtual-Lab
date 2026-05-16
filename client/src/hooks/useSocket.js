@@ -2,17 +2,18 @@ import { useEffect, useRef, useCallback } from 'react'
 import { io } from 'socket.io-client'
 import { useRoomStore } from '../stores/roomStore'
 
-// Use empty string so socket.io connects to the same origin
-// which goes through Vite's proxy → no CORS issues
+// Connect via Vite proxy (same origin) to avoid CORS
 const SOCKET_URL = window.location.origin
 
 /**
  * useSocket — Socket.io client hook for real-time collaboration
- * Manages connection, room events, physics deltas, and cursor sync
+ * Manages connection, room events, physics deltas, cursor sync, and experiment sync
  */
 export default function useSocket() {
   const socketRef = useRef(null)
   const cursorIntervalRef = useRef(null)
+  // Store callbacks for experiment sync (set by App.jsx)
+  const experimentCallbackRef = useRef(null)
   const {
     setRoom, clearRoom, setConnected, setUsers,
     addUser, removeUser, setCurrentUserId,
@@ -23,8 +24,9 @@ export default function useSocket() {
     const socket = io(SOCKET_URL, {
       autoConnect: false,
       reconnection: true,
-      reconnectionAttempts: 5,
+      reconnectionAttempts: 10,
       reconnectionDelay: 1000,
+      timeout: 10000,
     })
     socketRef.current = socket
 
@@ -34,9 +36,23 @@ export default function useSocket() {
       setCurrentUserId(socket.id)
     })
 
-    socket.on('disconnect', () => {
-      console.log('🔌 Disconnected from server')
+    socket.on('disconnect', (reason) => {
+      console.log('🔌 Disconnected:', reason)
+      // Only clear connected state, don't clear room (allows reconnection)
       setConnected(false)
+    })
+
+    socket.on('reconnect', () => {
+      console.log('🔌 Reconnected!')
+      setConnected(true)
+      // Re-join room if we were in one
+      const { roomCode } = useRoomStore.getState()
+      if (roomCode) {
+        socket.emit('room:join', {
+          roomCode,
+          user: { username: `User-${socket.id.slice(0, 4)}` },
+        })
+      }
     })
 
     socket.on('connect_error', (err) => {
@@ -44,23 +60,36 @@ export default function useSocket() {
       setConnected(false)
     })
 
-    // Room events
+    // ── Room events ──
     socket.on('room:joined', ({ roomCode, users, worldState, isHost }) => {
+      // Explicitly set connected when room is confirmed joined
+      setConnected(true)
       setRoom({ id: roomCode, name: roomCode, code: roomCode, hostId: isHost ? socket.id : null })
       setUsers(users)
+      console.log(`🏠 Joined room: ${roomCode} (${users.length} users, host: ${isHost})`)
     })
 
     socket.on('room:user-joined', (user) => {
       addUser(user)
+      console.log(`👤 ${user.username} joined the room`)
     })
 
-    socket.on('room:user-left', ({ userId }) => {
+    socket.on('room:user-left', ({ userId, username }) => {
       removeUser(userId)
+      console.log(`👤 ${username || userId} left the room`)
     })
 
     socket.on('room:host-changed', ({ isHost }) => {
       if (isHost) {
         console.log('👑 You are now the host')
+      }
+    })
+
+    // ── Experiment sync ──
+    socket.on('experiment:loaded', (snapshot) => {
+      console.log('📡 Received experiment from another user')
+      if (experimentCallbackRef.current) {
+        experimentCallbackRef.current(snapshot)
       }
     })
 
@@ -78,11 +107,13 @@ export default function useSocket() {
 
   // Join a room
   const joinRoom = useCallback((roomCode, user) => {
-    if (!socketRef.current?.connected) {
-      socketRef.current?.connect()
-    }
-    // Wait for connection, then join
     const socket = socketRef.current
+    if (!socket) return
+
+    if (!socket.connected) {
+      socket.connect()
+    }
+
     const doJoin = () => socket.emit('room:join', { roomCode, user })
 
     if (socket.connected) {
@@ -97,6 +128,18 @@ export default function useSocket() {
     socketRef.current?.emit('room:leave')
     clearRoom()
   }, [clearRoom])
+
+  // ── Experiment sync ──
+  // Broadcast experiment load to all room members
+  const sendExperiment = useCallback((snapshot) => {
+    socketRef.current?.emit('experiment:load', snapshot)
+  }, [])
+
+  // Register callback for when another user loads an experiment
+  const onExperimentLoaded = useCallback((callback) => {
+    experimentCallbackRef.current = callback
+    return () => { experimentCallbackRef.current = null }
+  }, [])
 
   // Send physics delta
   const sendDelta = useCallback((delta) => {
@@ -139,6 +182,7 @@ export default function useSocket() {
   return {
     connect, joinRoom, leaveRoom,
     sendDelta, sendCursor, sendFullState,
+    sendExperiment, onExperimentLoaded,
     onPhysicsDelta, onCursorUpdate, onChatMessage,
     sendChatMessage,
     socket: socketRef,

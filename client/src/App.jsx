@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import Matter from 'matter-js'
 import TopBar from './components/Layout/TopBar'
 import ToolPalette from './components/Toolbar/ToolPalette'
@@ -17,13 +18,27 @@ import { useCanvasStore } from './stores/canvasStore'
 import { deserializeWorld, resetWorld } from './utils/physicsSerializer'
 
 function AppContent() {
-  const { joinRoom, leaveRoom } = useSocket()
-  const { isConnected } = useRoomStore()
+  const { joinRoom, leaveRoom, sendExperiment, onExperimentLoaded } = useSocket()
+  const { isConnected, roomCode } = useRoomStore()
   const { data, collisions, exportCSV, clearCollisions } = useAnalytics(100)
   const { engineRef } = useEngine()
   const { undo, redo, clear: clearHistory } = useUndoRedo()
 
   useKeyboardShortcuts({ onUndo: undo, onRedo: redo })
+
+  // Listen for experiments loaded by other users in the room
+  useEffect(() => {
+    const cleanup = onExperimentLoaded((snapshot) => {
+      const engine = engineRef.current
+      if (!engine || !snapshot) return
+      console.log('📡 Loading experiment from room peer...')
+      deserializeWorld(engine, snapshot, useCanvasStore)
+      useCanvasStore.getState().setRunning(false)
+      clearHistory()
+      clearCollisions()
+    })
+    return cleanup
+  }, [onExperimentLoaded, engineRef, clearHistory, clearCollisions])
 
   const handleJoinRoom = (code, roomName) => {
     joinRoom(code, {
@@ -37,8 +52,13 @@ function AppContent() {
     if (!engine || !experiment.snapshot) return
     deserializeWorld(engine, experiment.snapshot, useCanvasStore)
     useCanvasStore.getState().setRunning(false)
-    clearHistory()      // clear undo stack — can't undo an experiment load
-    clearCollisions()   // clear old collision data
+    clearHistory()
+    clearCollisions()
+
+    // If in a room, broadcast the experiment to other users
+    if (roomCode) {
+      sendExperiment(experiment.snapshot)
+    }
   }
 
   const handleReset = () => {
