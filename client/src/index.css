@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* ========================================================================
+   VIRTUAL-LAB Design System
+   Aesthetic: Warm dark — Linear/Raycast inspired
+   NOT the typical AI neon-on-black look
+   ======================================================================== */
+
+@theme {
+  /* ── Backgrounds ── */
+  --color-bg-deep: #0c1017;
+  --color-bg-base: #111720;
+  --color-bg-surface: #171f2b;
+  --color-bg-raised: #1e2838;
+  --color-bg-hover: #252f42;
+  --color-bg-active: #2d3a50;
+
+  /* ── Borders ── */
+  --color-border-subtle: #1e2838;
+  --color-border-default: #2a3548;
+  --color-border-strong: #3a4a62;
+
+  /* ── Text ── */
+  --color-text-primary: #e8ecf1;
+  --color-text-secondary: #94a3b8;
+  --color-text-muted: #5e6f87;
+  --color-text-inverse: #0c1017;
+
+  /* ── Accent: Warm Amber ── */
+  --color-accent: #e8a84c;
+  --color-accent-hover: #f0b75e;
+  --color-accent-muted: rgba(232, 168, 76, 0.15);
+  --color-accent-text: #fcd9a0;
+
+  /* ── Semantic ── */
+  --color-success: #4ade80;
+  --color-success-muted: rgba(74, 222, 128, 0.12);
+  --color-warning: #facc15;
+  --color-warning-muted: rgba(250, 204, 21, 0.12);
+  --color-danger: #f87171;
+  --color-danger-muted: rgba(248, 113, 113, 0.12);
+  --color-info: #60a5fa;
+  --color-info-muted: rgba(96, 165, 250, 0.12);
+
+  /* ── Physics Object Colors ── */
+  --color-body-rect: #60a5fa;
+  --color-body-circle: #c084fc;
+  --color-body-polygon: #34d399;
+  --color-constraint-rope: #fbbf24;
+  --color-constraint-spring: #f472b6;
+
+  /* ── Typography ── */
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+
+  /* ── Spacing ── */
+  --sidebar-width: 56px;
+  --inspector-width: 280px;
+  --topbar-height: 48px;
+  --bottom-panel-height: 180px;
+
+  /* ── Animations ── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── Global Reset & Base ── */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--color-bg-deep);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
+}
+
+/* ── Selection ── */
+::selection {
+  background: var(--color-accent-muted);
+  color: var(--color-accent-text);
+}
+
+/* ── Utility Animations ── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s var(--ease-out-expo) both;
+}
+
+.animate-slide-right {
+  animation: slide-in-right 0.3s var(--ease-out-expo) both;
+}
+
+.animate-slide-up {
+  animation: slide-in-up 0.3s var(--ease-out-expo) both;
+}
+
+/* ── Glass Effect ── */
+.glass {
+  background: rgba(23, 31, 43, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-subtle);
+}
+
+/* ── Canvas Grid Pattern ── */
+.canvas-grid {
+  background-image:
+    linear-gradient(rgba(42, 53, 72, 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(42, 53, 72, 0.3) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* ── Tooltip base ── */
+[data-tooltip] {
+  position: relative;
+}
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  background: var(--color-bg-raised);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 100;
+}
+[data-tooltip]:hover::after {
+  opacity: 1;
+}

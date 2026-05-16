@@ -1,0 +1,38 @@
+services:
+  # ── MongoDB ──
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: virtuallab
+
+  # ── Backend API ──
+  server:
+    build: ./server
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+    environment:
+      PORT: 5000
+      NODE_ENV: production
+      MONGODB_URI: mongodb://mongo:27017/virtuallab
+      JWT_SECRET: ${JWT_SECRET:-virtuallab-production-secret-change-this}
+      CLIENT_URL: http://localhost
+
+  # ── Frontend ──
+  client:
+    build: ./client
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server
+
+volumes:
+  mongo-data:
