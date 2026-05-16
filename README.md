@@ -156,6 +156,4 @@ virtual-lab/
 - `cursor:move` / `cursor:update` — Live cursors
 - `chat:message` — In-room chat
 
-## 📄 License
 
-MIT
