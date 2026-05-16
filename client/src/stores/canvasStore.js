@@ -1,10 +1,11 @@
 import { create } from 'zustand'
+import { subscribeWithSelector } from 'zustand/middleware'
 
 /**
  * Canvas Store — manages physics canvas state
  * Selected tool, selected bodies, simulation controls
  */
-export const useCanvasStore = create((set, get) => ({
+export const useCanvasStore = create(subscribeWithSelector((set, get) => ({
   // ── Tool Selection ──
   activeTool: 'select',   // select | rectangle | circle | polygon | rope | spring | pivot | motor | eraser
   setActiveTool: (tool) => set({ activeTool: tool }),
@@ -66,4 +67,4 @@ export const useCanvasStore = create((set, get) => ({
     const { [id]: _, ...rest } = s.constraints
     return { constraints: rest }
   }),
-}))
+})))

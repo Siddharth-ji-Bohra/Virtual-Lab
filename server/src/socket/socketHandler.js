@@ -117,6 +117,31 @@ function socketHandler(io) {
       socket.to(currentRoom).emit('experiment:loaded', snapshot)
     })
 
+    // ── World Sync ──
+    // Full world state broadcast (bodies + constraints + positions)
+    // Sent after body/constraint creation and periodically during simulation
+    socket.on('world:sync', (snapshot) => {
+      if (!currentRoom) return
+      const room = rooms.get(currentRoom)
+      if (!room) return
+
+      // Store latest world state for new joiners
+      room.worldState = snapshot
+
+      // Broadcast to all OTHER users
+      socket.to(currentRoom).emit('world:synced', snapshot)
+    })
+
+    // ── Simulation State Sync (play/pause) ──
+    socket.on('sim:toggle', ({ isRunning }) => {
+      if (!currentRoom) return
+      const room = rooms.get(currentRoom)
+      if (!room) return
+
+      console.log(`▶️ ${socket.id} set simulation: ${isRunning ? 'PLAY' : 'PAUSE'}`)
+      socket.to(currentRoom).emit('sim:toggled', { isRunning })
+    })
+
     // ── Full State Sync (host broadcasts periodically) ──
     socket.on('physics:full-state', (worldState) => {
       if (!currentRoom) return
