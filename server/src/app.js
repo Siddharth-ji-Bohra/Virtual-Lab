@@ -14,16 +14,17 @@ const app = express()
 const server = http.createServer(app)
 
 // Socket.io setup
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173,http://localhost:5174').split(',')
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     methods: ['GET', 'POST'],
   },
 })
 
 // ── Middleware ──
 app.use(helmet({ contentSecurityPolicy: false }))
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }))
+app.use(cors({ origin: allowedOrigins }))
 app.use(morgan('dev'))
 app.use(express.json({ limit: '10mb' }))  // large payload for experiment snapshots
 app.use(express.urlencoded({ extended: true }))

@@ -2,7 +2,9 @@ import { useEffect, useRef, useCallback } from 'react'
 import { io } from 'socket.io-client'
 import { useRoomStore } from '../stores/roomStore'
 
-const SOCKET_URL = 'http://localhost:5000'
+// Use empty string so socket.io connects to the same origin
+// which goes through Vite's proxy → no CORS issues
+const SOCKET_URL = window.location.origin
 
 /**
  * useSocket — Socket.io client hook for real-time collaboration
@@ -34,6 +36,11 @@ export default function useSocket() {
 
     socket.on('disconnect', () => {
       console.log('🔌 Disconnected from server')
+      setConnected(false)
+    })
+
+    socket.on('connect_error', (err) => {
+      console.error('🔌 Socket connection error:', err.message)
       setConnected(false)
     })
 

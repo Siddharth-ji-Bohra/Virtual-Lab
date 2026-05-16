@@ -25,8 +25,11 @@ function AppContent() {
 
   useKeyboardShortcuts({ onUndo: undo, onRedo: redo })
 
-  const handleJoinRoom = (code) => {
-    joinRoom(code, { username: `User-${Math.random().toString(36).slice(2, 6)}` })
+  const handleJoinRoom = (code, roomName) => {
+    joinRoom(code, {
+      username: `User-${Math.random().toString(36).slice(2, 6)}`,
+      roomName: roomName || code,
+    })
   }
 
   const handleLoadExperiment = (experiment) => {
