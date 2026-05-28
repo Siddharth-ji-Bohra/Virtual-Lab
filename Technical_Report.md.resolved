@@ -1,0 +1,469 @@
+# VIRTUAL-LAB: A Collaborative 2D Physics Sandbox
+
+## Technical Report
+
+---
+
+**Project Title:** Virtual-Lab — Collaborative Physics Sandbox for Education  
+**Team:** Siddharth Bohra  
+**Repository:** [github.com/Siddharth-ji-Bohra/Virtual-Lab](https://github.com/Siddharth-ji-Bohra/Virtual-Lab)  
+**Date:** May 2026
+
+---
+
+## 1. Abstract
+
+Virtual-Lab is a full-stack, real-time collaborative 2D physics sandbox designed for physics education. Built using **React 19**, **Matter.js**, and **Socket.io**, the platform enables users to create rigid-body experiments with circles, rectangles, and constraints (ropes, springs, pivots, motors, welds), simulate them under Newtonian mechanics, and observe live analytics dashboards showing velocity, kinetic energy, and net force graphs. A built-in library of 8 pre-configured physics experiments — from simple pendulums to domino chain reactions — allows instant exploration of key physics concepts. The system supports real-time multi-user collaboration through WebSocket-based room management, enabling shared physics simulations with live cursor tracking.
+
+---
+
+## 2. Introduction
+
+### 2.1 Problem Statement
+
+Traditional physics education relies on static diagrams and mathematical formulas, making it difficult for students to develop an intuitive understanding of concepts like momentum transfer, oscillation, or friction. Existing physics simulation tools (PhET, Algodoo) are either single-user, platform-dependent, or lack real-time collaboration capabilities suitable for modern classroom environments.
+
+### 2.2 Objective
+
+To build a browser-based, real-time collaborative physics sandbox that:
+
+1. Allows users to **create and simulate** 2D rigid-body experiments interactively
+2. Provides a **library of 8 pre-built physics experiments** for guided learning
+3. Enables **real-time multiplayer collaboration** via WebSocket rooms
+4. Displays **live analytics** (velocity, energy, force) as simulations run
+5. Supports **property inspection and editing** of individual physics bodies
+
+### 2.3 Scope
+
+The project covers a complete full-stack implementation including a React frontend with a canvas-based physics renderer, a Node.js/Express backend with Socket.io for real-time communication, JWT-based authentication, and Docker deployment configuration.
+
+---
+
+## 3. System Architecture
+
+### 3.1 High-Level Architecture
+
+```mermaid
+graph TB
+    subgraph Client ["Frontend (React 19 + Vite)"]
+        UI[UI Components]
+        Engine[Matter.js Physics Engine]
+        Store[Zustand State Management]
+        Socket_C[Socket.io Client]
+    end
+    
+    subgraph Server ["Backend (Express 5 + Node.js)"]
+        API[REST API Routes]
+        Socket_S[Socket.io Server]
+        Auth[JWT Auth Middleware]
+        DB[MongoDB / Mongoose]
+    end
+    
+    UI --> Engine
+    UI --> Store
+    Store --> Socket_C
+    Socket_C <-->|WebSocket| Socket_S
+    UI -->|HTTP| API
+    API --> Auth
+    API --> DB
+    Socket_S --> DB
+```
+
+### 3.2 Technology Stack
+
+| Layer | Technology | Version | Purpose |
+|-------|-----------|---------|---------|
+| **Frontend Framework** | React | 19.2 | Component-based UI |
+| **Build Tool** | Vite | 8.0 | Fast HMR, ESM bundling |
+| **CSS Framework** | Tailwind CSS | 4.3 | Utility-first styling |
+| **Physics Engine** | Matter.js | 0.20 | 2D rigid-body dynamics |
+| **State Management** | Zustand | 5.0 | Lightweight global state |
+| **Charts** | Recharts | 3.8 | Live analytics graphs |
+| **Animations** | Framer Motion | 12.38 | UI transitions |
+| **Icons** | Lucide React | 1.14 | SVG icon library |
+| **Backend Framework** | Express | 5.2 | REST API server |
+| **Real-Time** | Socket.io | 4.8 | WebSocket communication |
+| **Database** | MongoDB + Mongoose | 9.6 | Persistent data storage |
+| **Authentication** | JWT + bcryptjs | — | Secure user sessions |
+| **Containerization** | Docker + Compose | — | Deployment packaging |
+
+---
+
+## 4. Module Design
+
+### 4.1 Frontend Architecture
+
+The client is organized into a modular component hierarchy:
+
+```
+client/src/
+├── App.jsx                          # Root component + sync orchestration
+├── main.jsx                         # React entry point
+├── index.css                        # Design system (CSS variables)
+├── components/
+│   ├── Canvas/PhysicsCanvas.jsx     # Matter.js renderer + interaction
+│   ├── Layout/TopBar.jsx            # Play/Pause, Reset, Step controls
+│   ├── Toolbar/ToolPalette.jsx      # Body + constraint creation tools
+│   ├── Inspector/PropertyPanel.jsx  # Selected body property editor
+│   ├── Dashboard/BottomPanel.jsx    # Analytics charts + collision log
+│   ├── Experiments/ExperimentGallery.jsx  # Template library modal
+│   ├── Room/RoomLobby.jsx           # Room create/join UI
+│   ├── Room/CursorOverlay.jsx       # Multi-user cursor rendering
+│   └── ErrorBoundary.jsx            # Crash-safe wrappers
+├── contexts/
+│   └── EngineContext.jsx            # Matter.js engine ref provider
+├── hooks/
+│   ├── useSocket.js                 # Socket.io connection + events
+│   ├── useAnalytics.js              # Real-time physics data sampling
+│   ├── useKeyboardShortcuts.js      # Ctrl+Z, Delete, Space, etc.
+│   └── useUndoRedo.js               # Undo/redo state snapshots
+├── stores/
+│   ├── canvasStore.js               # Tool, selection, simulation state
+│   ├── roomStore.js                 # Multi-user room state
+│   └── uiStore.js                   # Modal + panel visibility
+├── utils/
+│   ├── physicsSerializer.js         # World serialize/deserialize
+│   └── materials.js                 # Physics material presets
+└── data/
+    └── templates.js                 # 8 experiment configurations
+```
+
+### 4.2 Backend Architecture
+
+```
+server/src/
+├── app.js                           # Express + Socket.io server entry
+├── config/
+│   └── db.js                        # MongoDB connection handler
+├── middleware/
+│   ├── authMiddleware.js            # JWT verification (required + optional)
+│   └── errorHandler.js              # Global error response formatter
+├── models/
+│   ├── User.js                      # User schema (username, password, avatar)
+│   ├── Room.js                      # Room schema (code, host, members)
+│   └── Experiment.js                # Experiment schema (snapshot, metadata)
+├── routes/
+│   ├── auth.js                      # POST /register, /login
+│   ├── rooms.js                     # CRUD for collaboration rooms
+│   └── experiments.js               # CRUD for saved experiments
+└── socket/
+    └── socketHandler.js             # Real-time event management
+```
+
+---
+
+## 5. Key Features & Implementation
+
+### 5.1 Physics Engine (Matter.js)
+
+The core of the application is a fully interactive 2D physics engine:
+
+- **Body Types:** Circles, rectangles, and polygons with configurable mass, density, friction, restitution, and air friction
+- **Constraint Types:** Ropes (low stiffness), springs (elastic), pivots (fixed rotation points), motors (angular velocity), and welds (rigid connections)
+- **Material Presets:** 8 pre-configured materials (Metal, Wood, Rubber, Ice, Stone, Glass, Foam, Custom) with realistic physics properties
+- **Collision Detection:** Matter.js SAT (Separating Axis Theorem) for accurate narrow-phase detection
+- **Static Bodies:** Supports fixed bodies (ramps, anchors) via `Body.setStatic()` after creation
+
+![Main Canvas](C:/Users/lenovo/.gemini/antigravity/brain/62fa5e5d-fbed-4588-ba64-ed3337f8de5e/report_images/main_canvas.png)
+
+### 5.2 Experiment Library
+
+8 pre-built experiments stored as serialized Matter.js world snapshots:
+
+| # | Experiment | Difficulty | Physics Concepts |
+|---|-----------|-----------|-----------------|
+| 1 | Simple Pendulum | Beginner | Oscillation, gravity, energy |
+| 2 | Newton's Cradle | Intermediate | Momentum, collision, energy transfer |
+| 3 | Inclined Plane | Beginner | Friction, gravity, forces |
+| 4 | Spring-Mass System | Beginner | Oscillation, spring, harmonic motion |
+| 5 | Projectile Motion | Beginner | Trajectory, velocity, gravity |
+| 6 | Domino Chain | Intermediate | Chain-reaction, momentum, rotation |
+| 7 | Rope Bridge | Advanced | Constraints, tension, load |
+| 8 | Atwood Machine | Intermediate | Pulley, tension, net force |
+
+![Experiment Library](C:/Users/lenovo/.gemini/antigravity/brain/62fa5e5d-fbed-4588-ba64-ed3337f8de5e/report_images/experiment_gallery.png)
+
+### 5.3 World Serialization / Deserialization
+
+A custom serializer (`physicsSerializer.js`) converts the live Matter.js world into a portable JSON snapshot format:
+
+```js
+// Serialization schema (Version 1)
+{
+  version: 1,
+  timestamp: Date.now(),
+  gravity: { x: 0, y: 1 },
+  bodies: [
+    {
+      id, type, label, position, angle, velocity,
+      circleRadius, width, height,
+      mass, density, friction, frictionAir, restitution,
+      isStatic, isSensor, render: { fillStyle, strokeStyle, lineWidth }
+    }
+  ],
+  constraints: [
+    {
+      id, label, bodyAId, bodyBId,
+      pointA, pointB, length, stiffness, damping,
+      render: { strokeStyle, lineWidth }
+    }
+  ]
+}
+```
+
+**Key design decisions:**
+- `bodyAId: null` with `pointA` as a world coordinate creates a **fixed-point anchor** (used in pendulums)
+- `Body.setStatic(body, true)` is called **after** `Body.setAngle()` to ensure static bodies (ramps) are correctly initialized
+- A `BOUNDARY_LABELS` set (`Ground`, `Wall-L`, `Wall-R`) ensures environment bodies are never serialized or removed
+
+### 5.4 Real-Time Collaboration
+
+The multiplayer system uses a **host-authoritative** sync model over Socket.io:
+
+```mermaid
+sequenceDiagram
+    participant Host
+    participant Server
+    participant Guest
+
+    Host->>Server: room:join (create room)
+    Server->>Host: room:joined (isHost: true)
+    
+    Guest->>Server: room:join (join existing)
+    Server->>Guest: room:joined (worldState)
+    Server->>Host: room:user-joined
+    
+    loop Every 1 second
+        Host->>Server: world:sync (serialized world)
+        Server->>Guest: world:synced (serialized world)
+    end
+    
+    Host->>Server: sim:toggle (play/pause)
+    Server->>Guest: sim:toggled
+    
+    Host->>Server: experiment:load (snapshot)
+    Server->>Guest: experiment:loaded (snapshot)
+```
+
+![Collaboration Modal](C:/Users/lenovo/.gemini/antigravity/brain/62fa5e5d-fbed-4588-ba64-ed3337f8de5e/report_images/collaboration_modal.png)
+
+**Socket Events:**
+
+| Event | Direction | Purpose |
+|-------|-----------|---------|
+| `room:join` | Client → Server | Create or join a room |
+| `room:joined` | Server → Client | Confirm join + send user list |
+| `world:sync` | Host → Server → Guests | Full world state broadcast (1s interval) |
+| `sim:toggle` | Any → Server → Others | Play/Pause state sync |
+| `experiment:load` | Any → Server → Others | Template experiment broadcast |
+| `cursor:move` | Any → Server → Others | Live cursor position |
+| `physics:delta` | Any → Server → Others | Incremental physics updates |
+
+### 5.5 Live Analytics Dashboard
+
+The `useAnalytics` hook samples the physics engine state at configurable intervals and renders three live charts:
+
+1. **Velocity** (px/frame) — RMS velocity of all dynamic bodies
+2. **Kinetic Energy** (J) — Total ½mv² across all bodies
+3. **Net Force** (N) — Sum of all force magnitudes
+
+Additionally, a **Collision Log** tab captures every collision event with body labels, relative velocity, and timestamp.
+
+### 5.6 Property Inspector
+
+When a body is selected on the canvas, the right-side Inspector panel displays and allows editing of:
+
+- **Label** — Custom name for the body
+- **Material** — Quick-select from 8 presets
+- **Mass, Friction, Bounce (Restitution), Density** — Fine-grained physics tuning
+- **Color** — Custom render fill color
+- **Static toggle** — Lock/unlock body position
+
+---
+
+## 6. Data Flow Diagram
+
+```mermaid
+flowchart LR
+    A[User Interaction] --> B{Tool Selected?}
+    B -->|Select| C[Click Body → Inspector Panel]
+    B -->|Shape| D[Click Canvas → Create Body]
+    B -->|Constraint| E[Click Body A → Click Body B → Create Constraint]
+    B -->|Eraser| F[Click Body → Remove]
+    
+    D --> G[Register in Canvas Store]
+    E --> G
+    F --> G
+    
+    G --> H{In Room?}
+    H -->|Yes| I[Serialize World → Socket Broadcast]
+    H -->|No| J[Local Only]
+    
+    K[Play Button] --> L[Matter.Engine.update Loop]
+    L --> M[useAnalytics Samples]
+    M --> N[Recharts Live Graphs]
+    L --> O{Is Host + In Room?}
+    O -->|Yes| I
+```
+
+---
+
+## 7. Database Schema
+
+### 7.1 User Model
+
+```js
+{
+  username:    { type: String, unique: true, required: true },
+  email:       { type: String, unique: true, required: true },
+  password:    { type: String, required: true },  // bcrypt hash
+  avatarColor: { type: String, default: '#60a5fa' },
+  createdAt:   { type: Date, default: Date.now }
+}
+```
+
+### 7.2 Room Model
+
+```js
+{
+  name:       { type: String, default: 'Untitled Lab' },
+  code:       { type: String, unique: true },  // auto-generated 6-char code
+  host:       { type: ObjectId, ref: 'User' },
+  members:    [{ type: ObjectId, ref: 'User' }],
+  isPublic:   { type: Boolean, default: true },
+  maxMembers: { type: Number, default: 8 },
+  status:     { type: String, enum: ['active', 'closed'], default: 'active' }
+}
+```
+
+### 7.3 Experiment Model
+
+```js
+{
+  title:       { type: String, required: true },
+  description: String,
+  creator:     { type: ObjectId, ref: 'User' },
+  snapshot:    { type: Object },  // Version-1 serialized world JSON
+  tags:        [String],
+  isPublic:    { type: Boolean, default: true },
+  views:       { type: Number, default: 0 }
+}
+```
+
+---
+
+## 8. Security Considerations
+
+| Mechanism | Implementation |
+|-----------|---------------|
+| **Password Hashing** | bcryptjs with automatic salt rounds |
+| **JWT Authentication** | HS256 signed tokens with configurable expiry |
+| **Helmet.js** | HTTP security headers (XSS, MIME sniffing, etc.) |
+| **CORS** | Strict origin whitelisting for API and WebSocket |
+| **Input Validation** | express-validator on all route inputs |
+| **Rate Limiting** | Configurable via environment variables |
+| **Environment Secrets** | `.env` files excluded from version control |
+
+---
+
+## 9. Deployment Architecture
+
+```mermaid
+graph LR
+    subgraph Docker Compose
+        A[Nginx Container<br/>Serves React Build] -->|Proxy /api, /socket.io| B[Node.js Container<br/>Express + Socket.io]
+        B --> C[(MongoDB Container)]
+    end
+    
+    D[Browser Client] -->|HTTPS| A
+```
+
+**Docker configuration:**
+- **Client:** Multi-stage build — `npm run build` → Nginx serving static files
+- **Server:** Node.js container running Express + Socket.io
+- **Database:** Official MongoDB image with persistent volume mount
+
+---
+
+## 10. Testing & Verification
+
+### 10.1 Experiment Verification
+
+All 8 experiments were tested using automated browser agents:
+
+| Experiment | Bodies | Constraints | Physics Status |
+|-----------|--------|-------------|---------------|
+| Simple Pendulum | 1 bob | 1 rope | ✅ Oscillates correctly |
+| Newton's Cradle | 5 balls | 5 ropes | ✅ Momentum transfer works |
+| Inclined Plane | 1 block + 1 ramp (static) | 0 | ✅ Block slides on ramp |
+| Spring-Mass System | 1 mass | 1 spring | ✅ Oscillates vertically |
+| Projectile Motion | 1 ball | 0 | ✅ Parabolic trajectory |
+| Domino Chain | 11 dominoes | 0 | ✅ Chain reaction cascade |
+| Rope Bridge | 12 segments + 1 weight | 13 links | ✅ Bridge sags under load |
+| Atwood Machine | 2 weights | 2 ropes | ✅ Differential acceleration |
+
+### 10.2 Collaboration Testing
+
+- ✅ Room creation and join via 6-character codes
+- ✅ Real-time cursor tracking between users
+- ✅ Experiment loading syncs across all users
+- ✅ Play/Pause state syncs instantly
+- ✅ Host-authoritative world state sync (1s interval)
+- ✅ User disconnect/reconnect handled gracefully
+
+---
+
+## 11. Project Metrics
+
+| Metric | Value |
+|--------|-------|
+| Total Source Files | 63 |
+| Total Code Size | ~1,155 KB |
+| Frontend Components | 10 React components |
+| Custom Hooks | 4 (socket, analytics, shortcuts, undo) |
+| State Stores | 3 (canvas, room, UI) |
+| API Routes | 3 route modules (auth, rooms, experiments) |
+| Socket Events | 12 distinct event types |
+| Physics Templates | 8 experiments |
+| Material Presets | 8 (Metal, Wood, Rubber, Ice, Stone, Glass, Foam, Custom) |
+
+---
+
+## 12. Limitations & Future Work
+
+### 12.1 Current Limitations
+
+1. **No Persistent Login** — Authentication exists in the backend but is not yet wired to the frontend UI
+2. **Single-Instance Backend** — Socket.io rooms are stored in-memory (not Redis), limiting horizontal scaling
+3. **Canvas Size Dependency** — Experiment templates are designed for ~950×420px; different screen sizes may cause minor offset issues
+4. **No Mobile Support** — Touch interactions are not optimized for phone/tablet screens
+
+### 12.2 Future Enhancements
+
+1. **Onboarding Tour** — Guided walkthrough using intro.js for first-time users
+2. **Experiment Recording** — Record and replay simulations as video
+3. **Custom Experiment Saving** — Allow users to save and share their own experiments to the cloud
+4. **3D Mode** — Extend to Three.js / Cannon.js for 3D physics simulations
+5. **AI-Assisted Learning** — Integrate an LLM to explain physics concepts as experiments run
+
+---
+
+## 13. Conclusion
+
+Virtual-Lab successfully demonstrates a production-quality, real-time collaborative physics sandbox built entirely with modern web technologies. The system's combination of a robust physics engine (Matter.js), elegant state management (Zustand), real-time collaboration (Socket.io), and a polished UI (React + Tailwind) creates an engaging platform for interactive physics education. The modular architecture allows easy extension with new experiment types, additional analytics, and future 3D capabilities.
+
+---
+
+## 14. References
+
+1. Matter.js Documentation — https://brm.io/matter-js/docs/
+2. Socket.io Documentation — https://socket.io/docs/v4/
+3. React 19 Documentation — https://react.dev/
+4. Zustand State Management — https://zustand-demo.pmnd.rs/
+5. Vite Build Tool — https://vite.dev/
+6. Recharts Charting Library — https://recharts.org/
+7. Docker Documentation — https://docs.docker.com/
+
+---
+
+*Report generated for the Virtual-Lab project. Source code available at [github.com/Siddharth-ji-Bohra/Virtual-Lab](https://github.com/Siddharth-ji-Bohra/Virtual-Lab).*
